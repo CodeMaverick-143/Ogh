@@ -36,6 +36,7 @@ import com.pedro.library.multiple.MultiStream
 import com.pedro.library.multiple.MultiType
 import com.ogh.shared.domain.AudioConfig
 import com.ogh.shared.domain.AudioSettings
+import com.ogh.shared.domain.DestinationConnectionStatus
 import com.ogh.shared.domain.VideoConfig
 import com.ogh.shared.domain.VideoSettings
 import com.ogh.shared.domain.VideoSource
@@ -100,6 +101,9 @@ class ScreenCaptureService : Service() {
 
     /** External callback to forward connection events to the UI layer. */
     var connectionCallback: ConnectChecker? = null
+
+    /** Reports each RTMP output index's connection state; indexes follow [startStreams]. */
+    var destinationStatusListener: ((Int, DestinationConnectionStatus) -> Unit)? = null
 
     private var videoConfig = VideoConfig()
     private var audioConfig = AudioConfig()
@@ -177,6 +181,7 @@ class ScreenCaptureService : Service() {
         preparedPreview = null
         sessionPrepared = false
         connectionCallback = null
+        destinationStatusListener = null
     }
 
     // --- Public API for ViewModel/Activity ---
@@ -785,6 +790,7 @@ class ScreenCaptureService : Service() {
         preparedPreview = null
         sessionPrepared = false
         connectionCallback = null
+        destinationStatusListener = null
         destinationCount = 1
         initializeStream(destinationCount)
         stopSelf()
@@ -922,6 +928,7 @@ class ScreenCaptureService : Service() {
         override fun onConnectionStarted(url: String) {
             terminalDestinations[index] = false
             Log.i(TAG, "Destination ${index + 1} connecting")
+            destinationStatusListener?.invoke(index, DestinationConnectionStatus.CONNECTING)
             if (connectedDestinations.none { it }) connectionCallback?.onConnectionStarted("")
         }
 
@@ -930,6 +937,7 @@ class ScreenCaptureService : Service() {
             connectedDestinations[index] = true
             terminalDestinations[index] = false
             Log.i(TAG, "Destination ${index + 1} connected")
+            destinationStatusListener?.invoke(index, DestinationConnectionStatus.LIVE)
             if (!wasAnyConnected) connectionCallback?.onConnectionSuccess()
         }
 
@@ -938,6 +946,7 @@ class ScreenCaptureService : Service() {
             terminalDestinations[index] = true
             // RootEncoder errors may contain a complete RTMP URL and stream key.
             Log.e(TAG, "Destination ${index + 1} failed")
+            destinationStatusListener?.invoke(index, DestinationConnectionStatus.FAILED)
             if (connectedDestinations.none { it } && terminalDestinations.all { it }) {
                 connectionCallback?.onConnectionFailed("All destinations failed to connect")
             }
@@ -951,6 +960,7 @@ class ScreenCaptureService : Service() {
             connectedDestinations[index] = false
             terminalDestinations[index] = true
             Log.i(TAG, "Destination ${index + 1} disconnected")
+            destinationStatusListener?.invoke(index, DestinationConnectionStatus.DISCONNECTED)
             if (connectedDestinations.none { it } && terminalDestinations.all { it }) {
                 connectionCallback?.onDisconnect()
             }
@@ -960,6 +970,7 @@ class ScreenCaptureService : Service() {
             connectedDestinations[index] = false
             terminalDestinations[index] = true
             Log.e(TAG, "Destination ${index + 1} authentication failed")
+            destinationStatusListener?.invoke(index, DestinationConnectionStatus.FAILED)
             if (connectedDestinations.none { it } && terminalDestinations.all { it }) {
                 connectionCallback?.onAuthError()
             }

@@ -8,6 +8,7 @@ import com.ogh.shared.domain.LatencyMode
 import com.ogh.shared.domain.PrivacyStatus
 import com.ogh.shared.domain.StreamMetadata
 import com.ogh.shared.domain.StreamingProvider
+import com.ogh.shared.domain.DestinationConnectionStatus
 import com.ogh.shared.domain.DestinationType
 import com.ogh.shared.domain.StreamState
 import com.ogh.shared.domain.VideoSettings
@@ -423,6 +424,17 @@ class StreamViewModelTest {
         )
     }
 
+
+    @Test
+    fun destinationStatus_lateCallbackAfterSessionCleanupIsIgnored() {
+        val vm = StreamViewModel()
+        vm.beginPreparing()
+        vm.preparationFailed("Encoder failed")
+
+        vm.updateDestinationStatus("dest-1", DestinationConnectionStatus.LIVE)
+
+        assertTrue(vm.destinationStatuses.value.isEmpty())
+    }
 }
 
 private class DelayedFirstSaveStore : AppSettingsStore {

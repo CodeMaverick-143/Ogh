@@ -56,10 +56,17 @@ manual RTMP destination exists. Preview contains:
   while live and can naturally include Ogh recursively;
 - the centered Ogh mark, a Settings action while idle, and a preparation/live/
   video-hidden badge;
-- a compact status overlay with duration and bitrate during a session attempt;
-- a **Sending to** strip naming each enabled destination with its color, or
-  **No destination enabled** with a **Set up** action that opens Destinations
-  while configuration is unlocked;
+- a compact status overlay with duration and bitrate during a session attempt.
+  While streaming to more than one destination its headline reads **Live · N
+  of M destinations**, and below it each Failed or Disconnected destination is
+  named (up to two, then **+N more**) in a polite live region; healthy and
+  connecting outputs are only counted. The rows stay after a terminal failure
+  until the next attempt;
+- before a session only, a strip of chips naming each enabled destination with
+  its color, announced to screen readers as **Sending to** followed by the
+  names, or **No destination enabled** with a **Set up** action that opens
+  Destinations. Destinations cannot change during a session, so the strip is
+  hidden from preparation through stop;
 - persistent **Screen** and **Camera** source controls;
 - pre-live **Mic** and **System Audio** selections; and
 - a gradient **Go Live** while stopped, or **Hide Video**/**Show Video** and
@@ -69,8 +76,14 @@ manual RTMP destination exists. Preview contains:
 
 Source, audio, and live controls pair a code-drawn icon with a text label.
 Controls occupy two rows when the UI is portrait and one row when the UI is
-landscape; the destination strip sits above them in both layouts. Audio selections are available only before preparation; they remain
-visible as selected/unselected buttons and persist like other settings.
+landscape; the destination strip sits above them in both layouts, and labels
+are identical in both. Labels shrink to fit rather than truncate at large font
+scales. Selected source and audio buttons use a solid fill and a heavier
+border; **Mic** and **System Audio** also switch to a slashed microphone or
+muted speaker icon when off; every toggle exposes selected and On/Off state to
+accessibility services, so selection never relies on colour alone. Audio
+selections are available only before preparation and persist like other
+settings.
 
 There is no camera dropdown. **Camera** selects the first compatible facing;
 when both front and back cameras exist, its selected-state label becomes **Flip
@@ -146,7 +159,7 @@ icon (`ProviderLogo.kt`) beside its name. The onboarding **Connect a platform**
 buttons show only the icon; their accessible names remain **Connect YouTube**
 and **Connect Twitch**. Provider destinations use the same icon in place of
 the color dot in the Destinations list, where it fades while the destination is
-disabled, and in the Preview **Sending to** strip. A provider is either
+disabled, and in the Preview destination strip. A provider is either
 disconnected, in a connection operation, or connected with its locally retained
 account label.
 Connecting creates exactly one provider-managed destination. Disconnecting
@@ -634,8 +647,9 @@ nix develop --command bash -lc \
 ```
 
 Shared tests cover defaults, destination collection behavior, endpoint
-planning/joining, configuration-lock policy, statistics formatting, and RTMP
-validation. Android JVM tests cover ViewModel state/destination behavior,
+planning/joining (including per-destination output targets), the Preview
+session destination summary, configuration-lock policy, statistics formatting,
+and RTMP validation. Android JVM tests cover ViewModel state/destination behavior,
 permission predicates, settings and destination codecs, OAuth configuration,
 Twitch device/refresh/revoke flows, YouTube requests/parsing, and Google
 revocation using MockWebServer.

@@ -24,6 +24,15 @@ Notable user-visible changes are recorded here. The format follows
 
 ### Changed
 
+- While live, the Preview status card shows how many destinations are live
+  (**Live · 1 of 2 destinations**) and names any that failed or disconnected.
+  The destination strip now appears only before going live, without the
+  visible "Sending to" label.
+- Selected source and audio buttons use a solid fill and heavier border, and
+  **Mic**/**System Audio** show slashed icons when off, with an On/Off state for
+  screen readers, so selection no longer relies on colour alone.
+- Preview source and audio labels shrink to fit instead of truncating at large
+  system font sizes, so **System Audio** stays readable.
 - YouTube failures now explain the cause and next step, such as live streaming
   not yet enabled on the channel, an exhausted API quota, or an expired
   sign-in, instead of showing only an HTTP status code.

@@ -385,6 +385,7 @@ class MainActivity : ComponentActivity() {
             val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
             val streamingStats by viewModel.streamingStats.collectAsStateWithLifecycle()
             val isSourceSwitching by viewModel.isSourceSwitching.collectAsStateWithLifecycle()
+            val destinationStatuses by viewModel.destinationStatuses.collectAsStateWithLifecycle()
             val destinations by viewModel.destinationRepository.destinations.collectAsStateWithLifecycle()
             val videoSettings by viewModel.videoSettings.collectAsStateWithLifecycle()
             val audioSettings by viewModel.audioSettings.collectAsStateWithLifecycle()
@@ -457,6 +458,7 @@ class MainActivity : ComponentActivity() {
                                     audioSettings = audioSettings,
                                     availableVideoSources = availableVideoSources,
                                     isSourceSwitching = isSourceSwitching,
+                                    destinationStatuses = destinationStatuses,
                                 ),
                                 previewContent = { modifier ->
                                     StreamPreview(
