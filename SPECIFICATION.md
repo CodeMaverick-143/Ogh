@@ -345,8 +345,17 @@ completes the request the user actually made instead of starting a broadcast.
 
 One destination failure does not intentionally terminate healthy outputs. The
 ViewModel reports terminal connection failure only after all configured outputs
-have failed/disconnected. A user-requested stop is tracked so later disconnect
+have failed/disconnected, and then ends the capture session the way Stop does:
+camera, microphone, and MediaProjection are released, and the next **Go Live**
+prepares a fresh session. A user-requested stop is tracked so later disconnect
 callbacks cannot overwrite the explicit stopped state with an error.
+
+Per-output RTMP callbacks are aggregated by `OutputSessionTracker`, which binds
+each output's callback to the pipeline generation that created it. RootEncoder
+delivers callbacks asynchronously, so a callback can arrive after the service
+has rebuilt the pipeline (possibly with fewer outputs); callbacks from any
+generation other than the current one are ignored rather than applied to the
+current session.
 
 Starting multiple RTMP clients is transactional from the application's
 perspective. If any destination throws during startup, clients already started
@@ -418,10 +427,12 @@ texture. The stream portrait viewport follows the current physical orientation.
 The preview counter-rotation and preview portrait flag remain independent.
 Changing device orientation does not rebuild the encoder or RTMP clients.
 
-Cleanup stops every client, releases capture, encoder, preview, and audio
-resources, clears the MediaProjection result, removes session callbacks,
-clears session-only keep-awake state through activity coordination, and stops
-foreground-service status. A bound Preview host can prepare a new camera
+Cleanup stops every client, then ends the shared encoder session explicitly if
+it is still marked as streaming (a client whose connection failed can still
+report streaming, which would otherwise leave it open). It releases capture,
+encoder, preview, and audio resources, clears the MediaProjection result,
+removes session callbacks, clears session-only keep-awake state through
+activity coordination, and stops foreground-service status. A bound Preview host can prepare a new camera
 pipeline after cleanup. The app-wide orientation preference remains in force.
 
 The service never restarts a capture session after process death because the
@@ -635,7 +646,8 @@ nix develop --command bash -lc \
 
 Shared tests cover defaults, destination collection behavior, endpoint
 planning/joining, configuration-lock policy, statistics formatting, and RTMP
-validation. Android JVM tests cover ViewModel state/destination behavior,
+validation. Android JVM tests cover ViewModel state/destination behavior and
+session cleanup, per-output RTMP aggregation across pipeline generations,
 permission predicates, settings and destination codecs, OAuth configuration,
 Twitch device/refresh/revoke flows, YouTube requests/parsing, and Google
 revocation using MockWebServer.

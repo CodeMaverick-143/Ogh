@@ -41,6 +41,10 @@ import java.util.logging.Logger
  */
 class StreamViewModel(
     private val settingsStore: AppSettingsStore? = null,
+    /** Releases capture once every output has ended on its own; injectable for tests. */
+    private val endCaptureSession: () -> Unit = {
+        ScreenCaptureService.instance?.finishSessionAfterOutputsEnded()
+    },
 ) : ViewModel(), ConnectChecker {
 
     // --- Destination Management ---
@@ -478,6 +482,7 @@ class StreamViewModel(
         _streamState.value = StreamState.ERROR
         _statusMessage.value = "Connection failed: $reason"
         log(Subsystems.RTMP, LogLevel.ERROR, "Connection failed: $reason")
+        endSessionAfterOutputsEnded()
     }
 
     override fun onDisconnect() {
@@ -490,6 +495,7 @@ class StreamViewModel(
         _statusMessage.value = "Disconnected"
         _streamingStats.value = StreamingStats()
         log(Subsystems.RTMP, LogLevel.WARNING, "Disconnected from server")
+        endSessionAfterOutputsEnded()
     }
 
     override fun onAuthError() {
@@ -497,6 +503,16 @@ class StreamViewModel(
         _streamState.value = StreamState.ERROR
         _statusMessage.value = "Authentication failed"
         log(Subsystems.RTMP, LogLevel.ERROR, "Authentication error")
+        endSessionAfterOutputsEnded()
+    }
+
+    /**
+     * Every output failed or disconnected without a user stop: release camera,
+     * microphone, and projection the way Stop does, so a new Go Live can prepare.
+     */
+    private fun endSessionAfterOutputsEnded() {
+        providerEndpoints = emptyMap()
+        endCaptureSession()
     }
 
     override fun onAuthSuccess() {

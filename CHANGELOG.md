@@ -24,6 +24,12 @@ Notable user-visible changes are recorded here. The format follows
 
 ### Changed
 
+- Fixed **Stop** crashing the app when two or more destinations were enabled:
+  a destination's late disconnect from the stopped session no longer reaches
+  the next session.
+- When every destination fails or disconnects, Ogh now releases the camera,
+  microphone, and screen capture instead of keeping them running, and the next
+  **Go Live** works instead of failing with "Failed to prepare capture source".
 - YouTube failures now explain the cause and next step, such as live streaming
   not yet enabled on the channel, an exhausted API quota, or an expired
   sign-in, instead of showing only an HTTP status code.

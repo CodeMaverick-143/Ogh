@@ -86,8 +86,6 @@ class ScreenCaptureService : Service() {
     private lateinit var multiStream: MultiStream
     private val binder = LocalBinder()
     private var destinationCount = 1
-    private var connectedDestinations = BooleanArray(destinationCount)
-    private var terminalDestinations = BooleanArray(destinationCount)
     private var notificationManager: NotificationManager? = null
     private var mediaProjection: MediaProjection? = null
     private val projectionCallbackHandler = Handler(Looper.getMainLooper())
@@ -100,6 +98,12 @@ class ScreenCaptureService : Service() {
 
     /** External callback to forward connection events to the UI layer. */
     var connectionCallback: ConnectChecker? = null
+
+    /** Per-output RTMP state for the current pipeline; stale pipelines' callbacks are ignored. */
+    private val outputs = OutputSessionTracker(
+        session = { connectionCallback },
+        log = { message, isError -> if (isError) Log.e(TAG, message) else Log.i(TAG, message) },
+    )
 
     private var videoConfig = VideoConfig()
     private var audioConfig = AudioConfig()
@@ -177,6 +181,7 @@ class ScreenCaptureService : Service() {
         preparedPreview = null
         sessionPrepared = false
         connectionCallback = null
+        outputs.retire()
     }
 
     // --- Public API for ViewModel/Activity ---
@@ -601,9 +606,12 @@ class ScreenCaptureService : Service() {
     fun stopStream() {
         if (::multiStream.isInitialized && multiStream.isStreaming) {
             Log.i(TAG, "Stopping stream")
-            repeat(destinationCount) { index ->
-                multiStream.stopStream(MultiType.RTMP, index)
-            }
+            stopAllOutputs(
+                outputCount = destinationCount,
+                stopOutput = { index -> multiStream.stopStream(MultiType.RTMP, index) },
+                isSessionStreaming = { multiStream.isStreaming },
+                stopSession = { multiStream.stopStream() },
+            )
         }
         videoPaused = false
     }
@@ -790,6 +798,17 @@ class ScreenCaptureService : Service() {
         stopSelf()
     }
 
+    /**
+     * Releases capture, audio, and projection after every output ended on its own.
+     * Posted so it never runs inside an RTMP callback, and skipped when the session
+     * was already finished (for example by MediaProjection revocation).
+     */
+    fun finishSessionAfterOutputsEnded() {
+        projectionCallbackHandler.post {
+            if (isStreaming()) finishSession()
+        }
+    }
+
     /** Whether the stream is currently publishing. */
     @Synchronized
     fun isStreaming(): Boolean = multiStream.isStreaming
@@ -802,11 +821,9 @@ class ScreenCaptureService : Service() {
 
     private fun initializeStream(count: Int) {
         preparedPreview = null
-        connectedDestinations = BooleanArray(count)
-        terminalDestinations = BooleanArray(count)
         multiStream = MultiStream(
             baseContext,
-            Array(count) { index -> DestinationConnectChecker(index) },
+            outputs.startGeneration(count),
             null,
             null,
             null,
@@ -916,58 +933,5 @@ class ScreenCaptureService : Service() {
 
     private fun updateNotification(text: String) {
         notificationManager?.notify(NOTIFICATION_ID, buildNotification(text))
-    }
-
-    private inner class DestinationConnectChecker(private val index: Int) : ConnectChecker {
-        override fun onConnectionStarted(url: String) {
-            terminalDestinations[index] = false
-            Log.i(TAG, "Destination ${index + 1} connecting")
-            if (connectedDestinations.none { it }) connectionCallback?.onConnectionStarted("")
-        }
-
-        override fun onConnectionSuccess() {
-            val wasAnyConnected = connectedDestinations.any { it }
-            connectedDestinations[index] = true
-            terminalDestinations[index] = false
-            Log.i(TAG, "Destination ${index + 1} connected")
-            if (!wasAnyConnected) connectionCallback?.onConnectionSuccess()
-        }
-
-        override fun onConnectionFailed(reason: String) {
-            connectedDestinations[index] = false
-            terminalDestinations[index] = true
-            // RootEncoder errors may contain a complete RTMP URL and stream key.
-            Log.e(TAG, "Destination ${index + 1} failed")
-            if (connectedDestinations.none { it } && terminalDestinations.all { it }) {
-                connectionCallback?.onConnectionFailed("All destinations failed to connect")
-            }
-        }
-
-        override fun onNewBitrate(bitrate: Long) {
-            connectionCallback?.onNewBitrate(bitrate)
-        }
-
-        override fun onDisconnect() {
-            connectedDestinations[index] = false
-            terminalDestinations[index] = true
-            Log.i(TAG, "Destination ${index + 1} disconnected")
-            if (connectedDestinations.none { it } && terminalDestinations.all { it }) {
-                connectionCallback?.onDisconnect()
-            }
-        }
-
-        override fun onAuthError() {
-            connectedDestinations[index] = false
-            terminalDestinations[index] = true
-            Log.e(TAG, "Destination ${index + 1} authentication failed")
-            if (connectedDestinations.none { it } && terminalDestinations.all { it }) {
-                connectionCallback?.onAuthError()
-            }
-        }
-
-        override fun onAuthSuccess() {
-            Log.i(TAG, "Destination ${index + 1} authentication succeeded")
-            connectionCallback?.onAuthSuccess()
-        }
     }
 }

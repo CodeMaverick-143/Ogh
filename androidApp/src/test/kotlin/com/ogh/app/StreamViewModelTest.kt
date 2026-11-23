@@ -423,6 +423,60 @@ class StreamViewModelTest {
         )
     }
 
+
+    // --- Session cleanup after every output ended on its own ---
+
+    @Test
+    fun allOutputsFailing_endsTheCaptureSession() {
+        var ends = 0
+        val vm = StreamViewModel(endCaptureSession = { ends++ })
+        vm.beginPreparing()
+
+        vm.onConnectionFailed("All destinations failed to connect")
+
+        assertEquals(StreamState.ERROR, vm.streamState.value)
+        assertEquals(1, ends)
+    }
+
+    @Test
+    fun unrequestedDisconnectOfEveryOutput_endsTheCaptureSession() {
+        var ends = 0
+        val vm = StreamViewModel(endCaptureSession = { ends++ })
+        vm.beginPreparing()
+        vm.onConnectionSuccess()
+
+        vm.onDisconnect()
+
+        assertEquals(StreamState.STOPPED, vm.streamState.value)
+        assertEquals(1, ends)
+    }
+
+    @Test
+    fun authenticationFailureOfEveryOutput_endsTheCaptureSession() {
+        var ends = 0
+        val vm = StreamViewModel(endCaptureSession = { ends++ })
+        vm.beginPreparing()
+
+        vm.onAuthError()
+
+        assertEquals(StreamState.ERROR, vm.streamState.value)
+        assertEquals(1, ends)
+    }
+
+    @Test
+    fun callbacksAfterUserStop_doNotEndTheSessionAgain() {
+        var ends = 0
+        val vm = StreamViewModel(endCaptureSession = { ends++ })
+        vm.beginPreparing()
+        vm.onConnectionSuccess()
+        vm.stopStreaming()
+
+        vm.onDisconnect()
+        vm.onConnectionFailed("late")
+
+        assertEquals(StreamState.STOPPED, vm.streamState.value)
+        assertEquals(0, ends)
+    }
 }
 
 private class DelayedFirstSaveStore : AppSettingsStore {
