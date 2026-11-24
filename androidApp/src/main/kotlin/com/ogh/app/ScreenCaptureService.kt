@@ -97,11 +97,19 @@ class ScreenCaptureService : Service() {
     private lateinit var physicalOrientationTracker: PhysicalOrientationTracker
 
     /** External callback to forward connection events to the UI layer. */
+    @Volatile
     var connectionCallback: ConnectChecker? = null
 
-    /** Per-output RTMP state for the current pipeline; stale pipelines' callbacks are ignored. */
+    /**
+     * Per-output RTMP state for the current pipeline; stale pipelines' callbacks are
+     * ignored. When every output of a pipeline has ended, the session that owns that
+     * pipeline is released on the main thread (never inside the RTMP callback).
+     */
     private val outputs = OutputSessionTracker(
         session = { connectionCallback },
+        onAllOutputsEnded = { pipeline ->
+            projectionCallbackHandler.post { finishSessionIfCurrent(pipeline) }
+        },
         log = { message, isError -> if (isError) Log.e(TAG, message) else Log.i(TAG, message) },
     )
 
@@ -190,7 +198,9 @@ class ScreenCaptureService : Service() {
     @Synchronized
     fun configureDestinations(count: Int) {
         require(count > 0) { "At least one destination is required" }
-        if (count == destinationCount) return
+        // A pipeline whose outputs have all ended belongs to the session that just
+        // failed; its release is tied to that pipeline, so a new session gets a new one.
+        if (outputs.canReuseCurrent(count)) return
 
         clearPreview()
         stopStream()
@@ -799,14 +809,14 @@ class ScreenCaptureService : Service() {
     }
 
     /**
-     * Releases capture, audio, and projection after every output ended on its own.
-     * Posted so it never runs inside an RTMP callback, and skipped when the session
-     * was already finished (for example by MediaProjection revocation).
+     * Releases capture, audio, projection, and foreground state after every output of
+     * [pipeline] ended on its own. Tied to that pipeline rather than to the encoder's
+     * streaming flag: if Stop, MediaProjection revocation, or a new session already
+     * replaced the pipeline, the session that owned it is gone and nothing is done.
      */
-    fun finishSessionAfterOutputsEnded() {
-        projectionCallbackHandler.post {
-            if (isStreaming()) finishSession()
-        }
+    @Synchronized
+    private fun finishSessionIfCurrent(pipeline: OutputSessionTracker.Pipeline) {
+        if (outputs.isCurrent(pipeline)) finishSession()
     }
 
     /** Whether the stream is currently publishing. */

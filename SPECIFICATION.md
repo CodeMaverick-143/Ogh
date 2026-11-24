@@ -345,17 +345,31 @@ completes the request the user actually made instead of starting a broadcast.
 
 One destination failure does not intentionally terminate healthy outputs. The
 ViewModel reports terminal connection failure only after all configured outputs
-have failed/disconnected, and then ends the capture session the way Stop does:
-camera, microphone, and MediaProjection are released, and the next **Go Live**
-prepares a fresh session. A user-requested stop is tracked so later disconnect
-callbacks cannot overwrite the explicit stopped state with an error.
+have failed/disconnected. The service then releases the session that owns that
+pipeline the way Stop does: camera, microphone, MediaProjection, and
+foreground-service state are released, and the next **Go Live** prepares a
+fresh session. A user-requested stop is tracked so later disconnect callbacks
+cannot overwrite the explicit stopped state with an error.
 
 Per-output RTMP callbacks are aggregated by `OutputSessionTracker`, which binds
-each output's callback to the pipeline generation that created it. RootEncoder
-delivers callbacks asynchronously, so a callback can arrive after the service
-has rebuilt the pipeline (possibly with fewer outputs); callbacks from any
-generation other than the current one are ignored rather than applied to the
-current session.
+each output's callback to the pipeline (one `MultiStream`) that created it.
+RootEncoder delivers callbacks asynchronously, so a callback can arrive after
+the service has rebuilt the pipeline (possibly with fewer outputs); callbacks
+from any pipeline other than the current one are ignored rather than applied to
+the current session. RootEncoder delivers these callbacks on the main thread,
+while the service can replace the pipeline from the main thread, the idle
+camera-preview coroutine, or the MediaProjection callback thread. The tracker
+therefore performs the pipeline check and the dispatch to the session under one
+lock: once a replacement returns, no callback from the earlier pipeline is still
+being delivered. Lock order is the service monitor, then the tracker lock, then
+the session callback; the session callback never calls back into the service.
+
+The end of a pipeline (every output failed or disconnected) is reported once,
+and its later callbacks are ignored. Release is posted to the main thread, never
+run inside an RTMP callback, and is tied to that pipeline: it does nothing if
+Stop, MediaProjection revocation, or a new session has already replaced the
+pipeline, and it does not depend on the encoder's streaming flag. A pipeline
+whose outputs have all ended is never reused by a new session.
 
 Starting multiple RTMP clients is transactional from the application's
 perspective. If any destination throws during startup, clients already started
@@ -647,7 +661,8 @@ nix develop --command bash -lc \
 Shared tests cover defaults, destination collection behavior, endpoint
 planning/joining, configuration-lock policy, statistics formatting, and RTMP
 validation. Android JVM tests cover ViewModel state/destination behavior and
-session cleanup, per-output RTMP aggregation across pipeline generations,
+per-output RTMP aggregation across pipelines (including replacement racing
+delivery, delayed release, and overlapping terminal callbacks),
 permission predicates, settings and destination codecs, OAuth configuration,
 Twitch device/refresh/revoke flows, YouTube requests/parsing, and Google
 revocation using MockWebServer.
