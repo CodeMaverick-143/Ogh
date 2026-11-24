@@ -15,10 +15,28 @@ internal data class SessionDestinationSummary(
     val live: Int,
     val problems: List<DestinationProblem>,
 ) {
-    /** Status-card headline while streaming; a single destination needs no count. */
-    val liveHeadline: String
-        get() = if (total <= 1) "Live" else "Live · $live of $total destinations"
+    /** How many outputs are live; a single destination needs no count. */
+    val liveCountLine: String?
+        get() = if (total <= 1) null else "$live of $total destinations live"
 }
+
+/** The status card's two text lines: the session message, then the destination count. */
+internal data class SessionStatusText(val message: String, val destinationLine: String?)
+
+/**
+ * The card always shows the session's own [statusMessage], so operation feedback
+ * such as "Could not hide video" stays visible while live. The destination count
+ * is a separate line, shown only while the session is live or video is hidden.
+ */
+internal fun sessionStatusText(
+    statusMessage: String,
+    isSourceSwitching: Boolean,
+    isLive: Boolean,
+    summary: SessionDestinationSummary,
+): SessionStatusText = SessionStatusText(
+    message = if (isSourceSwitching) "Switching source…" else statusMessage,
+    destinationLine = if (isLive) summary.liveCountLine else null,
+)
 
 /**
  * Summarizes [statuses] for the destinations that belong to the session, in the

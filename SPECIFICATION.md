@@ -57,11 +57,18 @@ manual RTMP destination exists. Preview contains:
 - the centered Ogh mark, a Settings action while idle, and a preparation/live/
   video-hidden badge;
 - a compact status overlay with duration and bitrate during a session attempt.
-  While streaming to more than one destination its headline reads **Live · N
-  of M destinations**, and below it each Failed or Disconnected destination is
-  named (up to two, then **+N more**) in a polite live region; healthy and
-  connecting outputs are only counted. The rows stay after a terminal failure
-  until the next attempt;
+  Its first line is always the session's status message, so operation feedback
+  such as **Could not hide video** or **Screen capture permission denied** stays
+  visible while live. While live or video-hidden with more than one destination,
+  a second line reads **N of M destinations live**, and below it each Failed or
+  Disconnected destination is named (up to two, then **+N more**) in a polite
+  live region; healthy and connecting outputs are only counted. The rows stay
+  after a terminal failure until the next attempt. Per-destination status is
+  routed by `DestinationStatusRouter`: each pipeline reports with its own
+  identity, and the session's listener only receives reports from the pipeline
+  that was current when it was bound, so a late report from a previous session
+  cannot change the next session's status even when it reuses the same
+  destinations and output indexes;
 - before a session only, a strip of chips naming each enabled destination with
   its color, announced to screen readers as **Sending to** followed by the
   names, or **No destination enabled** with a **Set up** action that opens

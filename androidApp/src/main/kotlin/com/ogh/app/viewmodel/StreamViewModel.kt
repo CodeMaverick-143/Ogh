@@ -344,13 +344,9 @@ class StreamViewModel(
         )
         streamStartTimeMs = System.currentTimeMillis()
 
-        // Output indexes follow endpoint order, so each index maps back to its destination.
-        val destinationIds = targets.map(PlannedEndpoint::destinationId)
-        _destinationStatuses.value =
-            destinationIds.associateWith { DestinationConnectionStatus.CONNECTING }
-        service.destinationStatusListener = { index, status ->
-            destinationIds.getOrNull(index)?.let { id -> updateDestinationStatus(id, status) }
-        }
+        service.bindDestinationStatusListener(
+            destinationStatusListenerFor(targets.map(PlannedEndpoint::destinationId)),
+        )
 
         if (!service.startStreams(endpoints)) {
             streamStartTimeMs = 0
@@ -440,6 +436,21 @@ class StreamViewModel(
             destinations = destinationRepository.destinations.value,
             providerEndpoints = providerEndpoints,
         )
+
+    /**
+     * Starts this session's status map with every destination connecting and returns
+     * the listener for its outputs. Output indexes follow endpoint order, so each
+     * index maps back to its destination. The service only delivers reports from the
+     * pipeline this listener is bound to.
+     */
+    internal fun destinationStatusListenerFor(
+        destinationIds: List<String>,
+    ): (index: Int, status: DestinationConnectionStatus) -> Unit {
+        _destinationStatuses.value = destinationIds.associateWith { DestinationConnectionStatus.CONNECTING }
+        return { index, status ->
+            destinationIds.getOrNull(index)?.let { id -> updateDestinationStatus(id, status) }
+        }
+    }
 
     /** Called from RTMP threads; ignored once the session's status map has been cleared. */
     internal fun updateDestinationStatus(destinationId: String, status: DestinationConnectionStatus) {

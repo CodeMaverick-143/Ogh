@@ -184,12 +184,15 @@ fun PreviewScreen(
                             state.destinations,
                             state.destinationStatuses,
                         )
+                        val text = sessionStatusText(
+                            statusMessage = state.statusMessage,
+                            isSourceSwitching = state.isSourceSwitching,
+                            isLive = isStreaming || isPaused,
+                            summary = summary,
+                        )
                         SessionStatus(
-                            statusMessage = when {
-                                state.isSourceSwitching -> "Switching source…"
-                                isStreaming && summary.total > 0 -> summary.liveHeadline
-                                else -> state.statusMessage
-                            },
+                            statusMessage = text.message,
+                            destinationLine = text.destinationLine,
                             elapsedTime = if (isActive) state.stats.formattedTime else null,
                             bitrate = if (isActive) state.stats.formattedBitrate else null,
                             problems = summary.problems,
@@ -618,6 +621,7 @@ private fun LiveBadge(streamState: StreamState, modifier: Modifier = Modifier) {
 @Composable
 private fun SessionStatus(
     statusMessage: String,
+    destinationLine: String?,
     elapsedTime: String?,
     bitrate: String?,
     problems: List<DestinationProblem>,
@@ -644,6 +648,13 @@ private fun SessionStatus(
                 )
                 if (elapsedTime != null) StatItem("Time", elapsedTime)
                 if (bitrate != null) StatItem("Bitrate", bitrate)
+            }
+            if (destinationLine != null) {
+                Text(
+                    text = destinationLine,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = OghColors.OnSurfaceVariant,
+                )
             }
             if (problems.isNotEmpty()) {
                 DestinationProblems(problems)

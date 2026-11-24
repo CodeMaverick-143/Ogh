@@ -24,8 +24,9 @@ Notable user-visible changes are recorded here. The format follows
 
 ### Changed
 
-- While live, the Preview status card shows how many destinations are live
-  (**Live · 1 of 2 destinations**) and names any that failed or disconnected.
+- While live, the Preview status card keeps its status message, adds how many
+  destinations are live (**1 of 2 destinations live**), and names any that
+  failed or disconnected.
   The destination strip now appears only before going live, without the
   visible "Sending to" label.
 - Selected source and audio buttons use a solid fill and heavier border, and
